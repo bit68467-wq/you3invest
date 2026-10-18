@@ -11,8 +11,8 @@ const PORT = process.env.PORT || 10000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servire i file statici dalla root del progetto
-app.use(express.static(path.join(__dirname, '..')));
+// Servire i file statici direttamente dalla cartella in cui si trova server.js
+app.use(express.static(path.join(__dirname)));
 
 // --- LOGICA DEI DATI (Yahoo, Kraken, Energy-Charts) ---
 
@@ -226,9 +226,9 @@ app.get("/api/asset-prices", async (req, res) => {
   res.json(data);
 });
 
-// Fallback SPA
+// Fallback SPA per servire index.html correttamente
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Avvio del server
