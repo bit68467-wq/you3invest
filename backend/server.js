@@ -1,21 +1,3 @@
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const app = express();
-const PORT = process.env.PORT || 10000;
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Servire i file statici direttamente dalla cartella in cui si trova server.js
-app.use(express.static(path.join(__dirname)));
-
-// --- LOGICA DEI DATI (Yahoo, Kraken, Energy-Charts) ---
-
 const yahooInstruments = {
   gold: { symbol: "GC=F", instrument: "Gold futures · USD per troy ounce" },
   oil: { symbol: "CL=F", instrument: "WTI crude futures · USD per barrel" },
@@ -115,6 +97,7 @@ async function electricityQuote(now) {
   };
 }
 
+
 async function yahooHistory(asset) {
   const body = await fetchJson(
     "https://query2.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(asset.symbol) + "?range=1d&interval=1m",
@@ -188,50 +171,40 @@ async function loadQuotes() {
   return { quotes, fetchedAt: Date.now() };
 }
 
-// --- ROTTE EXPRESS ---
-
-app.get("/api/asset-history", async (req, res) => {
-  res.setHeader("Cache-Control", "no-store");
-  if (cachedHistory && Date.now() - historyAt < 20_000) {
-    return res.json(cachedHistory);
-  }
-  if (!historyInFlight) {
-    historyInFlight = loadAssetHistory().then((data) => {
-      cachedHistory = data;
-      historyAt = Date.now();
-      return cachedHistory;
-    }).finally(() => { historyInFlight = null; });
-  }
-  res.json(await historyInFlight);
-});
-
-app.get("/api/asset-prices", async (req, res) => {
-  res.setHeader("Cache-Control", "no-store");
-  if (cachedQuotes && Date.now() - cachedAt < 60_000) {
-    return res.json(cachedQuotes);
-  }
-  if (!refreshInFlight) {
-    refreshInFlight = loadQuotes().then((data) => {
-      if (Object.keys(data.quotes).length) {
-        cachedQuotes = {
-          quotes: { ...(cachedQuotes?.quotes || {}), ...data.quotes },
-          fetchedAt: data.fetchedAt,
-        };
-        cachedAt = Date.now();
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method !== "GET") return new Response("Not found", { status: 404 });
+    if (url.pathname === "/api/asset-history") {
+      if (cachedHistory && Date.now() - historyAt < 20_000) {
+        return Response.json(cachedHistory, { headers: { "Cache-Control": "no-store" } });
       }
-      return cachedQuotes || data;
-    }).finally(() => { refreshInFlight = null; });
-  }
-  const data = await refreshInFlight;
-  res.json(data);
-});
-
-// Fallback SPA per servire index.html correttamente
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Avvio del server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running successfully on port ${PORT}`);
-});
+      if (!historyInFlight) {
+        historyInFlight = loadAssetHistory().then((data) => {
+          cachedHistory = data;
+          historyAt = Date.now();
+          return cachedHistory;
+        }).finally(() => { historyInFlight = null; });
+      }
+      return Response.json(await historyInFlight, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (url.pathname !== "/api/asset-prices") return new Response("Not found", { status: 404 });
+    if (cachedQuotes && Date.now() - cachedAt < 60_000) {
+      return Response.json(cachedQuotes, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (!refreshInFlight) {
+      refreshInFlight = loadQuotes().then((data) => {
+        if (Object.keys(data.quotes).length) {
+          cachedQuotes = {
+            quotes: { ...(cachedQuotes?.quotes || {}), ...data.quotes },
+            fetchedAt: data.fetchedAt,
+          };
+          cachedAt = Date.now();
+        }
+        return cachedQuotes || data;
+      }).finally(() => { refreshInFlight = null; });
+    }
+    const data = await refreshInFlight;
+    return Response.json(data, { headers: { "Cache-Control": "no-store" } });
+  },
+};
