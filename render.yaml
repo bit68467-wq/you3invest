@@ -2,6 +2,7 @@ services:
   - type: web
     name: you3invest
     runtime: node
+    rootDir: .
     buildCommand: npm init -y && npm pkg set type=module && npm install express pg
     startCommand: node render-backend/server.js
     healthCheckPath: /healthz
