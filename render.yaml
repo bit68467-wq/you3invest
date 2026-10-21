@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: you3invest
+    runtime: node
+    buildCommand: npm install && npm install pg && npm pkg set type=module
+    startCommand: node render-backend/server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD_SALT
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: ENABLE_CRYPTO_DEPOSITS
+        value: "false"
+      - key: SESSION_TTL_HOURS
+        value: "168"
